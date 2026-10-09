@@ -53,4 +53,9 @@ class ProductVariant extends Model
             ->where('status', 'available')
             ->count();
     }
+
+    public function priceHistories(): HasMany
+    {
+        return $this->hasMany(PriceHistory::class, 'product_variant_id');
+    }
 }

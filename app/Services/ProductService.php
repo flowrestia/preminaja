@@ -150,6 +150,19 @@ class ProductService
                     if (!empty($variantData['id'])) {
                         $variant = $product->variants()->find($variantData['id']);
                         if ($variant) {
+                            $oldPrice = (float) $variant->price;
+                            $newPrice = (float) $variantData['price'];
+
+                            // Catat riwayat jika harga berubah
+                            if ($oldPrice !== $newPrice) {
+                                \App\Models\PriceHistory::create([
+                                    'product_variant_id' => $variant->id,
+                                    'user_id' => auth()->id(),
+                                    'old_price' => $oldPrice,
+                                    'new_price' => $newPrice,
+                                ]);
+                            }
+
                             $variant->update([
                                 'name' => $variantData['name'],
                                 'price' => $variantData['price'],
@@ -175,14 +188,38 @@ class ProductService
                     $keptVariantIds[] = $newVariant->id;
                 }
 
-                // Delete removed variants that have no order items
-                $product->variants()
-                    ->whereNotIn('id', $keptVariantIds)
-                    ->whereDoesntHave('orderItems')
-                    ->delete();
+                // Varian yang dihilangkan dari form:
+                // Jika punya orderItem ATAU punya automatedCredentials -> jangan hapus, melainkan jadikan is_active = false
+                $removedVariants = $product->variants()->whereNotIn('id', $keptVariantIds)->get();
+                foreach ($removedVariants as $remVariant) {
+                    $hasOrders = $remVariant->orderItems()->exists();
+                    $hasCredentials = $remVariant->automatedCredentials()->exists();
+
+                    if ($hasOrders || $hasCredentials) {
+                        $remVariant->update(['is_active' => false]);
+                    } else {
+                        $remVariant->delete();
+                    }
+                }
             }
 
             return $product->fresh(['variants', 'category']);
         });
+    }
+
+    /**
+     * Delete or archive product based on order existence.
+     * Aturan: Produk yang sudah memiliki order tidak boleh dihapus permanen, hanya diarsipkan (archived).
+     */
+    public function deleteProduct(Product $product): void
+    {
+        $hasOrders = $product->variants()->whereHas('orderItems')->exists();
+
+        if ($hasOrders) {
+            $product->update(['status' => ProductStatus::ARCHIVED]);
+        } else {
+            // Hapus soft/hard
+            $product->delete();
+        }
     }
 }

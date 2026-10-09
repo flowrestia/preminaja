@@ -264,4 +264,164 @@ class SellerProductCrudTest extends TestCase
             ->call('toggleArchive')
             ->assertForbidden();
     }
+
+    public function test_variant_price_validation_range_and_history_recording(): void
+    {
+        // 1. Validasi batas harga: minimal 1.000, maksimal 10.000.000
+        $responseLow = $this->actingAs($this->sellerUser)->post(route('seller.products.store'), [
+            'name' => 'Produk Harga Rendah',
+            'category_id' => $this->category->id,
+            'description' => 'Deskripsi',
+            'delivery_type' => DeliveryType::MANUAL->value,
+            'variants' => [
+                ['name' => 'Murah', 'price' => 500, 'duration_days' => 30],
+            ],
+        ]);
+        $responseLow->assertSessionHasErrors(['variants.0.price']);
+
+        $responseHigh = $this->actingAs($this->sellerUser)->post(route('seller.products.store'), [
+            'name' => 'Produk Harga Terlalu Mahal',
+            'category_id' => $this->category->id,
+            'description' => 'Deskripsi',
+            'delivery_type' => DeliveryType::MANUAL->value,
+            'variants' => [
+                ['name' => 'Mahal', 'price' => 15000000, 'duration_days' => 30],
+            ],
+        ]);
+        $responseHigh->assertSessionHasErrors(['variants.0.price']);
+
+        // 2. Pencatatan riwayat perubahan harga
+        $product = Product::create([
+            'seller_id' => $this->sellerProfile->id,
+            'category_id' => $this->category->id,
+            'name' => 'Canva Pro Edu',
+            'slug' => 'canva-pro-edu',
+            'description' => 'Canva pro 1 tahun',
+            'delivery_type' => DeliveryType::AUTOMATED,
+            'status' => ProductStatus::PUBLISHED,
+        ]);
+
+        $variant = $product->variants()->create([
+            'name' => '1 Tahun',
+            'price' => 50000,
+            'duration_days' => 365,
+            'stock' => 10,
+        ]);
+
+        $updateResponse = $this->actingAs($this->sellerUser)->put(route('seller.products.update', $product), [
+            'name' => 'Canva Pro Edu',
+            'category_id' => $this->category->id,
+            'description' => 'Canva pro 1 tahun',
+            'delivery_type' => DeliveryType::AUTOMATED->value,
+            'variants' => [
+                [
+                    'id' => $variant->id,
+                    'name' => '1 Tahun',
+                    'price' => 65000, // Naikan harga dari 50.000 ke 65.000
+                    'duration_days' => 365,
+                ],
+            ],
+        ]);
+        $updateResponse->assertRedirect(route('seller.products.index'));
+
+        $this->assertDatabaseHas('price_histories', [
+            'product_variant_id' => $variant->id,
+            'user_id' => $this->sellerUser->id,
+            'old_price' => 50000.00,
+            'new_price' => 65000.00,
+        ]);
+    }
+
+    public function test_product_with_orders_is_archived_instead_of_deleted_and_variant_with_orders_or_credentials_is_deactivated(): void
+    {
+        $product = Product::create([
+            'seller_id' => $this->sellerProfile->id,
+            'category_id' => $this->category->id,
+            'name' => 'Disney+ Hotstar',
+            'slug' => 'disney-hotstar',
+            'description' => 'Disney Hotstar VIP',
+            'delivery_type' => DeliveryType::AUTOMATED,
+            'status' => ProductStatus::PUBLISHED,
+        ]);
+
+        $variant1 = $product->variants()->create([
+            'name' => '1 Bulan (Punya Order)',
+            'price' => 25000,
+            'duration_days' => 30,
+            'stock' => 5,
+            'is_active' => true,
+        ]);
+
+        $variant2 = $product->variants()->create([
+            'name' => '3 Bulan (Punya Kredensial)',
+            'price' => 70000,
+            'duration_days' => 90,
+            'stock' => 2,
+            'is_active' => true,
+        ]);
+
+        $buyer = User::factory()->create();
+        $order = \App\Models\Order::create([
+            'order_number' => 'ORD-TEST-ARCHIVE-01',
+            'user_id' => $buyer->id,
+            'total_amount' => 25000,
+            'discount_amount' => 0,
+            'fee_amount' => 0,
+            'final_amount' => 25000,
+            'payment_method' => 'qris',
+            'payment_status' => \App\Enums\PaymentStatus::PAID,
+            'order_status' => \App\Enums\OrderStatus::COMPLETED,
+        ]);
+
+        \App\Models\OrderItem::create([
+            'order_id' => $order->id,
+            'variant_id' => $variant1->id,
+            'seller_id' => $this->sellerProfile->id,
+            'quantity' => 1,
+            'price' => 25000,
+            'subtotal' => 25000,
+            'platform_fee' => 1250,
+            'seller_earning' => 23750,
+            'delivery_status' => \App\Enums\DeliveryStatus::DELIVERED,
+        ]);
+
+        // Berikan kredensial pada varian 2
+        \App\Models\AutomatedCredential::create([
+            'product_variant_id' => $variant2->id,
+            'credential_hash' => \App\Models\AutomatedCredential::generateHash('disney_sample@test.com|secretpass'),
+            'credential_data' => 'disney_sample@test.com|secretpass',
+            'status' => 'available',
+        ]);
+
+        // Coba edit produk dan buang variant1 & variant2 dari input (hanya menyisakan variant baru)
+        $this->actingAs($this->sellerUser)->put(route('seller.products.update', $product), [
+            'name' => 'Disney+ Hotstar',
+            'category_id' => $this->category->id,
+            'description' => 'Disney Hotstar VIP',
+            'delivery_type' => DeliveryType::AUTOMATED->value,
+            'variants' => [
+                ['name' => 'Varian Baru Baru', 'price' => 30000, 'duration_days' => 30],
+            ],
+        ]);
+
+        // Kedua varian tidak boleh hilang dari database, melainkan is_active menjadi false
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant1->id,
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant2->id,
+            'is_active' => false,
+        ]);
+
+        // Coba hapus produk yang memiliki pesanan
+        $deleteResponse = $this->actingAs($this->sellerUser)->delete(route('seller.products.destroy', $product));
+        $deleteResponse->assertRedirect(route('seller.products.index'));
+
+        // Produk tidak boleh terhapus dari tabel, melainkan berstatus archived
+        $this->assertDatabaseHas('products', [
+            'id' => $product->id,
+            'status' => ProductStatus::ARCHIVED->value,
+        ]);
+    }
 }

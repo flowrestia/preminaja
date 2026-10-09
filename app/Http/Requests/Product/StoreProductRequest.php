@@ -24,8 +24,8 @@ class StoreProductRequest extends FormRequest
             'is_draft' => ['nullable', 'boolean'],
             'variants' => ['required', 'array', 'min:1'],
             'variants.*.name' => ['required', 'string', 'max:255'],
-            'variants.*.price' => ['required', 'numeric', 'min:1000'],
-            'variants.*.original_price' => ['nullable', 'numeric', 'min:1000'],
+            'variants.*.price' => ['required', 'numeric', 'min:1000', 'max:10000000'],
+            'variants.*.original_price' => ['nullable', 'numeric', 'min:1000', 'max:10000000'],
             'variants.*.duration_days' => ['required', 'integer', 'min:1'],
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
         ];
@@ -46,6 +46,7 @@ class StoreProductRequest extends FormRequest
             'variants.*.name.required' => 'Nama varian wajib diisi.',
             'variants.*.price.required' => 'Harga varian wajib diisi.',
             'variants.*.price.min' => 'Harga varian minimal Rp 1.000.',
+            'variants.*.price.max' => 'Harga varian maksimal Rp 10.000.000.',
             'variants.*.duration_days.required' => 'Durasi hari wajib diisi.',
         ];
     }

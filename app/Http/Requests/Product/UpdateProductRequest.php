@@ -27,8 +27,8 @@ class UpdateProductRequest extends FormRequest
             'variants' => ['sometimes', 'required', 'array', 'min:1'],
             'variants.*.id' => ['nullable', 'integer'],
             'variants.*.name' => ['required', 'string', 'max:255'],
-            'variants.*.price' => ['required', 'numeric', 'min:1000'],
-            'variants.*.original_price' => ['nullable', 'numeric', 'min:1000'],
+            'variants.*.price' => ['required', 'numeric', 'min:1000', 'max:10000000'],
+            'variants.*.original_price' => ['nullable', 'numeric', 'min:1000', 'max:10000000'],
             'variants.*.duration_days' => ['required', 'integer', 'min:1'],
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.is_active' => ['nullable', 'boolean'],
@@ -46,6 +46,7 @@ class UpdateProductRequest extends FormRequest
             'thumbnail.mimes' => 'Format gambar harus jpeg, png, jpg, atau webp.',
             'thumbnail.max' => 'Ukuran gambar maksimal 2 MB.',
             'variants.*.price.min' => 'Harga varian minimal Rp 1.000.',
+            'variants.*.price.max' => 'Harga varian maksimal Rp 10.000.000.',
         ];
     }
 }

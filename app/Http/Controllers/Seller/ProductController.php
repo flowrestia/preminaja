@@ -79,9 +79,9 @@ class ProductController extends Controller
     {
         $this->authorize('delete', $product);
 
-        $product->delete();
+        $this->productService->deleteProduct($product);
 
         return redirect()->route('seller.products.index')
-            ->with('status', 'Produk berhasil dihapus.');
+            ->with('status', 'Produk berhasil diproses (dihapus atau diarsipkan jika memiliki riwayat pesanan).');
     }
 }
