@@ -4,6 +4,9 @@ namespace App\Models;
 
 use App\Enums\DeliveryType;
 use App\Enums\ProductStatus;
+use App\Enums\UserStatus;
+use App\Enums\VerificationStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +40,23 @@ class Product extends Model
             'rating_count' => 'integer',
             'sold_count' => 'integer',
         ];
+    }
+
+    /**
+     * Scope produk yang layak tampil di etalase katalog:
+     * 1. Status produk published
+     * 2. Profil seller approved
+     * 3. Akun user seller active (tidak diblokir)
+     */
+    public function scopeVisibleInCatalog(Builder $query): Builder
+    {
+        return $query->where('status', ProductStatus::PUBLISHED)
+            ->whereHas('seller', function (Builder $sellerQuery) {
+                $sellerQuery->where('verification_status', VerificationStatus::APPROVED)
+                    ->whereHas('user', function (Builder $userQuery) {
+                        $userQuery->where('status', UserStatus::ACTIVE);
+                    });
+            });
     }
 
     public function seller(): BelongsTo

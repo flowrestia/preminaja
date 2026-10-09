@@ -79,9 +79,9 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 4. Dummy Data - HANYA jika environment = local
-        if (! App::environment('local')) {
-            $this->command->info('DatabaseSeeder: Melewati dummy data karena environment bukan local.');
+        // 4. Dummy Data - HANYA jika environment = local atau testing
+        if (! App::environment(['local', 'testing'])) {
+            $this->command->info('DatabaseSeeder: Melewati dummy data karena environment bukan local atau testing.');
             return;
         }
 
@@ -284,9 +284,14 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        $credData = 'netflix_cust01@preminaja.id|NetflixPass123!|Profile: Budi (PIN: 1982)';
         AutomatedCredential::firstOrCreate(
-            ['product_variant_id' => $v1_1->id, 'credential_data' => 'netflix_cust01@preminaja.id|NetflixPass123!|Profile: Budi (PIN: 1982)'],
             [
+                'product_variant_id' => $v1_1->id,
+                'credential_hash' => AutomatedCredential::generateHash($credData),
+            ],
+            [
+                'credential_data' => $credData,
                 'instructions' => 'Login via web atau aplikasi Netflix. Pilih profile sesuai nomor PIN yang diberikan.',
                 'status' => 'available',
             ]

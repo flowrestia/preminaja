@@ -51,6 +51,11 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function buyer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(Voucher::class);

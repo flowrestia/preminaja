@@ -60,9 +60,8 @@ Route::middleware(['auth', 'active'])->group(function () {
 
         // Feature seller jualan yang wajib approved
         Route::middleware(['seller.approved'])->group(function () {
-            Route::get('/dashboard', function () {
-                return view('seller.dashboard');
-            })->name('dashboard');
+            Route::get('/dashboard', \App\Http\Controllers\Seller\DashboardController::class)->name('dashboard');
+            Route::resource('products', \App\Http\Controllers\Seller\ProductController::class);
         });
     });
 });

@@ -14,9 +14,18 @@ class AutomatedCredential extends Model
     protected $fillable = [
         'product_variant_id',
         'credential_data',
+        'credential_hash',
         'instructions',
         'status',
         'order_item_id',
+    ];
+
+    /**
+     * credential_data wajib disembunyikan dari serialisasi (JSON, API, Livewire)
+     */
+    protected $hidden = [
+        'credential_data',
+        'credential_hash',
     ];
 
     protected function casts(): array
@@ -35,5 +44,16 @@ class AutomatedCredential extends Model
     public function orderItem(): BelongsTo
     {
         return $this->belongsTo(OrderItem::class);
+    }
+
+    /**
+     * Generate standard HMAC-SHA256 hash dari data kredensial ternormalisasi.
+     */
+    public static function generateHash(string $plainCredential): string
+    {
+        $normalized = trim(strtolower($plainCredential));
+        $key = config('app.key', 'preminaja-fallback-secret-key-32b');
+
+        return hash_hmac('sha256', $normalized, $key);
     }
 }
