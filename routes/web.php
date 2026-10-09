@@ -62,6 +62,14 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::middleware(['seller.approved'])->group(function () {
             Route::get('/dashboard', \App\Http\Controllers\Seller\DashboardController::class)->name('dashboard');
             Route::resource('products', \App\Http\Controllers\Seller\ProductController::class);
+
+            // Automated Credential Stock Batching
+            Route::get('products/{product}/variants/{variant}/credentials', [\App\Http\Controllers\Seller\CredentialStockController::class, 'index'])
+                ->name('products.credentials.index');
+            Route::post('products/{product}/variants/{variant}/credentials/text', [\App\Http\Controllers\Seller\CredentialStockController::class, 'storeText'])
+                ->name('products.credentials.store-text');
+            Route::post('products/{product}/variants/{variant}/credentials/csv', [\App\Http\Controllers\Seller\CredentialStockController::class, 'storeCsv'])
+                ->name('products.credentials.store-csv');
         });
     });
 });

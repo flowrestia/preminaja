@@ -52,6 +52,12 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-2">
+                                    @if($product->delivery_type->value === 'automated' && $product->variants->first())
+                                        <a href="{{ route('seller.products.credentials.index', [$product, $product->variants->first()]) }}" class="text-xs px-2.5 py-1 rounded bg-purple-900/40 hover:bg-purple-800 text-purple-300 border border-purple-700">
+                                            Kelola Stok
+                                        </a>
+                                    @endif
+
                                     @livewire('seller.product-quick-status', ['product' => $product], key('status-'.$product->id))
 
                                     <a href="{{ route('seller.products.edit', $product) }}" class="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700">
