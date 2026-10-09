@@ -170,4 +170,74 @@ class CredentialBatchStockTest extends TestCase
             return $hasRowMention && $hasNoCredentialContent;
         });
     }
+
+    public function test_race_condition_unique_constraint_is_caught_as_duplicate(): void
+    {
+        $rawCredential = 'race_condition_account@secret.com|my_pass_123';
+        $hash = \App\Models\AutomatedCredential::generateHash($rawCredential);
+
+        // Simulasi race condition: baris data tiba-tiba dimasukkan oleh proses concurrent lain ke database
+        // tepat sebelum batch diproses
+        \App\Models\AutomatedCredential::create([
+            'product_variant_id' => $this->variant->id,
+            'credential_data' => $rawCredential,
+            'credential_hash' => $hash,
+            'status' => 'available',
+        ]);
+
+        $service = app(\App\Services\CredentialBatchService::class);
+        $result = $service->importFromText($this->variant, $rawCredential);
+
+        // Harus tertangkap sebagai duplikat (bukan melempar error 500 / unhandled exception)
+        $this->assertEquals(0, $result['inserted']);
+        $this->assertEquals([1], $result['duplicates']);
+    }
+
+    public function test_cross_seller_cannot_upload_stock_to_other_seller_product(): void
+    {
+        $otherUser = User::factory()->create([
+            'role' => UserRole::SELLER,
+            'status' => UserStatus::ACTIVE,
+        ]);
+        $otherUser->assignRole('seller');
+        \App\Models\SellerProfile::create([
+            'user_id' => $otherUser->id,
+            'store_name' => 'Toko Hacker',
+            'store_slug' => 'tokohacker',
+            'verification_status' => VerificationStatus::APPROVED,
+        ]);
+
+        // Coba upload stok ke produk milik seller pertama menggunakan akun seller lain
+        $response = $this->actingAs($otherUser)
+            ->post(route('seller.products.credentials.store-text', [$this->product, $this->variant]), [
+                'raw_credentials' => 'hacked_account@mail.com|pass',
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_temporary_csv_file_is_removed_and_no_credentials_leaked_to_logs_on_error(): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+
+        $secretAccount = 'leak_test_credential_secret@confidential.com|UltraSecret123';
+        $csvContent = "{$secretAccount}\n";
+        $csvFile = UploadedFile::fake()->createWithContent('test_leak.csv', $csvContent);
+
+        // Unggah CSV yang valid
+        $response = $this->actingAs($this->sellerUser)
+            ->post(route('seller.products.credentials.store-csv', [$this->product, $this->variant]), [
+                'csv_file' => $csvFile,
+            ]);
+
+        $response->assertRedirect();
+
+        // Pastikan temporary file dari upload dibersihkan
+        $this->assertFileDoesNotExist($csvFile->getRealPath());
+
+        // Verifikasi Log sistem tidak pernah mencatat $secretAccount
+        \Illuminate\Support\Facades\Log::shouldNotHaveReceived('error', function ($message) use ($secretAccount) {
+            return str_contains((string) $message, $secretAccount);
+        });
+    }
 }

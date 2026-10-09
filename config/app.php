@@ -99,6 +99,8 @@ return [
 
     'key' => env('APP_KEY'),
 
+    'credential_hash_key' => env('CREDENTIAL_HASH_KEY', 'default-credential-hash-key-change-in-env'),
+
     'previous_keys' => [
         ...array_filter(
             explode(',', env('APP_PREVIOUS_KEYS', ''))

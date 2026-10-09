@@ -78,21 +78,28 @@ class CredentialBatchService
         $lines = [];
         $rowCount = 0;
 
-        while (($row = fgetcsv($handle, 4096, ',')) !== false) {
-            $rowCount++;
-            if ($rowCount > 1000) {
-                fclose($handle);
-                throw new InvalidArgumentException('File CSV melebihi batas maksimal 1.000 baris.');
-            }
+        try {
+            while (($row = fgetcsv($handle, 4096, ',')) !== false) {
+                $rowCount++;
+                if ($rowCount > 1000) {
+                    throw new InvalidArgumentException('File CSV melebihi batas maksimal 1.000 baris.');
+                }
 
-            // Kolom pertama dianggap kredensial (atau gabungan baris)
-            $credential = trim($row[0] ?? '');
-            if ($credential !== '') {
-                $lines[] = $credential;
+                // Kolom pertama dianggap kredensial (atau gabungan baris)
+                $credential = trim($row[0] ?? '');
+                if ($credential !== '') {
+                    $lines[] = $credential;
+                }
+            }
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+            // Pastikan temporary file tidak tersisa di storage
+            if (file_exists($path)) {
+                @unlink($path);
             }
         }
-
-        fclose($handle);
 
         return $this->storeBatch($variant, $lines, $instructions);
     }
@@ -116,42 +123,45 @@ class CredentialBatchService
             ->flip()
             ->all();
 
-        DB::transaction(function () use (
-            $variant,
-            $lines,
-            $instructions,
-            $existingHashes,
-            &$insertedCount,
-            &$duplicateLines,
-            &$batchHashes
-        ) {
-            foreach ($lines as $index => $plainCredential) {
-                $lineNumber = $index + 1;
-                $hash = AutomatedCredential::generateHash($plainCredential);
+        foreach ($lines as $index => $plainCredential) {
+            $lineNumber = $index + 1;
+            $hash = AutomatedCredential::generateHash($plainCredential);
 
-                // Cek duplikasi di DB atau di batch yang sama
-                if (isset($existingHashes[$hash]) || isset($batchHashes[$hash])) {
-                    $duplicateLines[] = $lineNumber;
-                    continue;
-                }
-
-                $batchHashes[$hash] = true;
-
-                AutomatedCredential::create([
-                    'product_variant_id' => $variant->id,
-                    'credential_data' => $plainCredential, // Disimpan terenkripsi oleh model cast
-                    'credential_hash' => $hash,
-                    'instructions' => $instructions,
-                    'status' => 'available',
-                ]);
-
-                $insertedCount++;
+            // Cek duplikasi di DB atau di batch yang sama (in-memory)
+            if (isset($existingHashes[$hash]) || isset($batchHashes[$hash])) {
+                $duplicateLines[] = $lineNumber;
+                continue;
             }
 
-            // Update stok otomatis pada varian
-            $currentAvailable = $variant->availableCredentialsCount();
-            $variant->update(['stock' => $currentAvailable]);
-        });
+            $batchHashes[$hash] = true;
+
+            try {
+                // Gunakan try-catch per baris / savepoint untuk menangkap race-condition unique constraint
+                DB::transaction(function () use ($variant, $plainCredential, $hash, $instructions, &$insertedCount) {
+                    AutomatedCredential::create([
+                        'product_variant_id' => $variant->id,
+                        'credential_data' => $plainCredential, // Disimpan terenkripsi oleh model cast
+                        'credential_hash' => $hash,
+                        'instructions' => $instructions,
+                        'status' => 'available',
+                    ]);
+
+                    $insertedCount++;
+                });
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Deteksi pelanggaran unique constraint (kode SQLSTATE 23000 / error 1062)
+                if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
+                    $duplicateLines[] = $lineNumber;
+                } else {
+                    // Jangan rethrow dengan pesan mentah yang mungkin berisi kredensial jika bukan unique constraint
+                    throw new \RuntimeException("Gagal memproses baris {$lineNumber} karena kendala database.");
+                }
+            }
+        }
+
+        // Update stok otomatis pada varian
+        $currentAvailable = $variant->availableCredentialsCount();
+        $variant->update(['stock' => $currentAvailable]);
 
         return [
             'inserted' => $insertedCount,

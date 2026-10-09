@@ -52,7 +52,7 @@ class AutomatedCredential extends Model
     public static function generateHash(string $plainCredential): string
     {
         $normalized = trim(strtolower($plainCredential));
-        $key = config('app.key', 'preminaja-fallback-secret-key-32b');
+        $key = config('app.credential_hash_key', 'preminaja-fallback-credential-key-32b');
 
         return hash_hmac('sha256', $normalized, $key);
     }

@@ -61,6 +61,15 @@ In order to ensure that the Laravel community is welcoming to all, please review
 
 If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
+## PreminAja Marketplace Configuration & Security
+
+### `CREDENTIAL_HASH_KEY` Configuration
+Variabel lingkungan `CREDENTIAL_HASH_KEY` pada file `.env` digunakan secara spesifik untuk menghitung digest HMAC-SHA256 dari seluruh kredensial otomatis (`credential_hash`) guna mendeteksi duplikasi stok tanpa perlu membandingkan ciphertext terenkripsi.
+
+> [!WARNING]
+> **PENTING (Kunci Permanen):** Kunci `CREDENTIAL_HASH_KEY` **TIDAK BOLEH diubah atau di-regenerate** setelah ada data kredensial tersimpan di database. Mengubah nilai ini akan menyebabkan hash kredensial yang tersimpan di database tidak cocok dengan hash baru, sehingga deteksi duplikat stok kredensial akan gagal bekerja dan integritas data terganggu.
+
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+

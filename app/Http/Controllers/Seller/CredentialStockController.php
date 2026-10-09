@@ -16,11 +16,23 @@ class CredentialStockController extends Controller
         protected CredentialBatchService $batchService
     ) {}
 
-    public function index(Product $product, ProductVariant $variant): View
+    protected function ensureSellerOwnership(Product $product, ProductVariant $variant): void
     {
         $this->authorize('update', $product);
 
-        abort_unless($variant->product_id === $product->id, 404);
+        $sellerProfile = auth()->user()->sellerProfile;
+        if (!$sellerProfile || (int) $product->seller_id !== (int) $sellerProfile->id) {
+            abort(403, 'Akses ditolak: Produk bukan milik toko Anda.');
+        }
+
+        if ((int) $variant->product_id !== (int) $product->id) {
+            abort(404, 'Varian tidak ditemukan pada produk ini.');
+        }
+    }
+
+    public function index(Product $product, ProductVariant $variant): View
+    {
+        $this->ensureSellerOwnership($product, $variant);
 
         $stockStats = [
             'available' => $variant->automatedCredentials()->where('status', 'available')->count(),
@@ -34,8 +46,7 @@ class CredentialStockController extends Controller
 
     public function storeText(Request $request, Product $product, ProductVariant $variant): RedirectResponse
     {
-        $this->authorize('update', $product);
-        abort_unless($variant->product_id === $product->id, 404);
+        $this->ensureSellerOwnership($product, $variant);
 
         $validated = $request->validate([
             'raw_credentials' => ['required', 'string'],
@@ -66,8 +77,7 @@ class CredentialStockController extends Controller
 
     public function storeCsv(Request $request, Product $product, ProductVariant $variant): RedirectResponse
     {
-        $this->authorize('update', $product);
-        abort_unless($variant->product_id === $product->id, 404);
+        $this->ensureSellerOwnership($product, $variant);
 
         $request->validate([
             'csv_file' => ['required', 'file', 'max:1024'], // 1 MB
