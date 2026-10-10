@@ -138,6 +138,8 @@ class ProductResource extends Resource
                             'rejection_reason' => null,
                         ]);
 
+                        \App\Models\ModerationLog::log('approve_product', $record);
+
                         Notification::make()
                             ->title('Produk Disetujui & Diterbitkan')
                             ->success()
@@ -163,6 +165,8 @@ class ProductResource extends Resource
                             'status' => ProductStatus::REJECTED,
                             'rejection_reason' => $data['rejection_reason'],
                         ]);
+
+                        \App\Models\ModerationLog::log('reject_product', $record, $data['rejection_reason']);
 
                         Notification::make()
                             ->title('Produk Ditolak')

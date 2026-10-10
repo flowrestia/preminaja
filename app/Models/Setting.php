@@ -81,6 +81,15 @@ class Setting extends Model
                 'old_value' => $oldValue,
                 'new_value' => $stringValue,
             ]);
+
+            \App\Models\ModerationLog::create([
+                'actor_id' => $userId ?? Auth::id(),
+                'action' => 'update_setting',
+                'target_type' => static::class,
+                'target_id' => $setting->id,
+                'reason' => "Ubah {$key} dari {$oldValue} ke {$stringValue}",
+                'created_at' => now(),
+            ]);
         }
 
         return $setting;

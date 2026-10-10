@@ -137,7 +137,11 @@ class UserResource extends Resource
                             return;
                         }
 
-                        $record->update(['status' => UserStatus::BLOCKED]);
+                        // Model save() to trigger UserObserver
+                        $record->status = UserStatus::BLOCKED;
+                        $record->save();
+
+                        \App\Models\ModerationLog::log('block_user', $record, 'Blokir akun dari UserResource');
 
                         Notification::make()
                             ->title('Pengguna Berhasil Diblokir')
@@ -153,7 +157,10 @@ class UserResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (User $record): bool => $record->status === UserStatus::BLOCKED)
                     ->action(function (User $record) {
-                        $record->update(['status' => UserStatus::ACTIVE]);
+                        $record->status = UserStatus::ACTIVE;
+                        $record->save();
+
+                        \App\Models\ModerationLog::log('unblock_user', $record, 'Buka blokir akun dari UserResource');
 
                         Notification::make()
                             ->title('Status Pengguna Diaktifkan Kembali')
@@ -161,7 +168,34 @@ class UserResource extends Resource
                             ->send();
                     }),
             ])
-            ->bulkActions([]);
+            ->bulkActions([
+                Tables\Actions\BulkAction::make('bulkBlock')
+                    ->label('Blokir Terpilih')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                        $blockedCount = 0;
+                        foreach ($records as $user) {
+                            // Lewati diri sendiri atau superadmin lain
+                            if ($user->id === auth()->id() || $user->hasRole('superadmin')) {
+                                continue;
+                            }
+
+                            // Pastikan lewat instance model agar UserObserver men-trigger revokeTokens
+                            $user->status = UserStatus::BLOCKED;
+                            $user->save();
+
+                            \App\Models\ModerationLog::log('block_user', $user, 'Blokir akun via Bulk Action');
+                            $blockedCount++;
+                        }
+
+                        Notification::make()
+                            ->title("{$blockedCount} pengguna berhasil diblokir")
+                            ->success()
+                            ->send();
+                    }),
+            ]);
     }
 
     public static function getPages(): array
@@ -175,5 +209,15 @@ class UserResource extends Resource
     public static function canCreate(): bool
     {
         return false; // User registrasi secara mandiri via web/API
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false; // User tidak boleh dihapus permanen, hanya diblokir
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false; // Nonaktifkan bulk delete
     }
 }

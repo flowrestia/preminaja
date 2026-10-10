@@ -120,6 +120,8 @@ class SellerProfileResource extends Resource
                             'verification_notes' => 'Toko disetujui oleh admin ' . auth()->user()->name . ' pada ' . now()->toDateTimeString(),
                         ]);
 
+                        \App\Models\ModerationLog::log('approve_seller', $record);
+
                         Notification::make()
                             ->title('Seller Berhasil Disetujui')
                             ->success()
@@ -145,6 +147,8 @@ class SellerProfileResource extends Resource
                             'verification_notes' => $data['verification_notes'],
                         ]);
 
+                        \App\Models\ModerationLog::log('reject_seller', $record, $data['verification_notes']);
+
                         Notification::make()
                             ->title('Verifikasi Seller Ditolak')
                             ->danger()
@@ -160,7 +164,11 @@ class SellerProfileResource extends Resource
                     ->modalDescription('Memblokir akun seller ini akan otomatis menyembunyikan semua produknya dari etalase katalog publik.')
                     ->visible(fn (SellerProfile $record): bool => $record->user->status === UserStatus::ACTIVE)
                     ->action(function (SellerProfile $record) {
-                        $record->user->update(['status' => UserStatus::BLOCKED]);
+                        $user = $record->user;
+                        $user->status = UserStatus::BLOCKED;
+                        $user->save(); // model save() triggers UserObserver to revoke tokens
+
+                        \App\Models\ModerationLog::log('block_user', $user, 'Blokir seller dari SellerProfileResource');
 
                         Notification::make()
                             ->title('Akun Seller Berhasil Diblokir')
@@ -176,7 +184,11 @@ class SellerProfileResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (SellerProfile $record): bool => $record->user->status === UserStatus::BLOCKED)
                     ->action(function (SellerProfile $record) {
-                        $record->user->update(['status' => UserStatus::ACTIVE]);
+                        $user = $record->user;
+                        $user->status = UserStatus::ACTIVE;
+                        $user->save();
+
+                        \App\Models\ModerationLog::log('unblock_user', $user, 'Buka blokir seller dari SellerProfileResource');
 
                         Notification::make()
                             ->title('Blokir Seller Dibuka')
