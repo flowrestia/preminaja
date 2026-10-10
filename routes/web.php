@@ -4,9 +4,18 @@ use App\Http\Controllers\Auth\WebAuthController;
 use App\Livewire\Auth\Register;
 use Illuminate\Support\Facades\Route;
 
+// Public Catalog Routes
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('catalog.index');
 });
+Route::get('/katalog', [\App\Http\Controllers\CatalogController::class, 'index'])->name('catalog.index');
+Route::get('/katalog/{slug}', [\App\Http\Controllers\CatalogController::class, 'show'])->name('catalog.show');
+
+// Buyer Wishlist Route (Authenticated & Active)
+Route::middleware(['auth', 'active'])->group(function () {
+    Route::get('/wishlist', \App\Livewire\Buyer\WishlistIndex::class)->name('wishlist.index');
+});
+
 
 // Guest Authentication Routes (With Rate Limiting)
 Route::middleware('guest')->group(function () {

@@ -86,6 +86,11 @@ class Product extends Model
 
     public function minPrice(): ?float
     {
-        return (float) $this->variants()->where('is_active', true)->min('price');
+        if ($this->relationLoaded('variants')) {
+            $activeVariants = $this->variants->where('is_active', true);
+            return $activeVariants->isNotEmpty() ? (float) $activeVariants->min('price') : 0.0;
+        }
+
+        return (float) ($this->variants()->where('is_active', true)->min('price') ?? 0.0);
     }
 }
