@@ -8,8 +8,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return redirect()->route('catalog.index');
 });
-Route::get('/katalog', [\App\Http\Controllers\CatalogController::class, 'index'])->name('catalog.index');
-Route::get('/katalog/{slug}', [\App\Http\Controllers\CatalogController::class, 'show'])->name('catalog.show');
+Route::get('/katalog', [\App\Http\Controllers\CatalogController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('catalog.index');
+Route::get('/katalog/{slug}', [\App\Http\Controllers\CatalogController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('catalog.show');
 
 // Buyer Wishlist Route (Authenticated & Active)
 Route::middleware(['auth', 'active'])->group(function () {

@@ -375,4 +375,221 @@ class CatalogPublicTest extends TestCase
             'product_id' => $product->id,
         ]);
     }
+
+    /**
+     * (a) Produk draft, pending_review, rejected, inactive, archived tidak tampil di katalog dan detail via HTTP (404).
+     */
+    public function test_non_visible_product_statuses_are_hidden_from_catalog_and_return_404(): void
+    {
+        $seller = $this->createVerifiedSeller();
+        $cat = Category::create(['name' => 'Testing Statuses', 'slug' => 'testing-statuses']);
+
+        $statuses = [
+            'draft' => ProductStatus::DRAFT,
+            'pending_review' => ProductStatus::PENDING_REVIEW,
+            'rejected' => ProductStatus::REJECTED,
+            'inactive' => ProductStatus::INACTIVE,
+            'archived' => ProductStatus::ARCHIVED,
+        ];
+
+        foreach ($statuses as $name => $status) {
+            $prod = Product::create([
+                'seller_id' => $seller->id,
+                'category_id' => $cat->id,
+                'name' => "Product Status {$name}",
+                'slug' => "product-status-{$name}",
+                'description' => "Desc {$name}",
+                'status' => $status,
+                'delivery_type' => DeliveryType::AUTOMATED,
+            ]);
+            ProductVariant::create([
+                'product_id' => $prod->id,
+                'name' => '1 Bulan',
+                'price' => 20000,
+                'duration_days' => 30,
+                'stock' => 5,
+                'is_active' => true,
+            ]);
+
+            // Cek di katalog publik
+            $this->get(route('catalog.index'))
+                ->assertDontSee("Product Status {$name}");
+
+            // Cek detail via HTTP
+            $this->get(route('catalog.show', $prod->slug))
+                ->assertStatus(404);
+        }
+    }
+
+    /**
+     * (b) Kredensial dan credential_data tidak pernah ada di HTML respons katalog dan detail.
+     */
+    public function test_credentials_and_credential_data_are_never_present_in_catalog_or_detail_html(): void
+    {
+        $seller = $this->createVerifiedSeller();
+        $cat = Category::create(['name' => 'Security Test', 'slug' => 'security-test']);
+
+        $product = Product::create([
+            'seller_id' => $seller->id,
+            'category_id' => $cat->id,
+            'name' => 'Top Secret Streaming Account',
+            'slug' => 'top-secret-streaming-account',
+            'description' => 'Legal account description',
+            'status' => ProductStatus::PUBLISHED,
+            'delivery_type' => DeliveryType::AUTOMATED,
+        ]);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => 'Private Account',
+            'price' => 50000,
+            'duration_days' => 30,
+            'stock' => 1,
+            'is_active' => true,
+        ]);
+
+        $secretCredential = 'secret_user@example.com|SuperSecretP@ssw0rd123!';
+        \App\Models\AutomatedCredential::create([
+            'product_variant_id' => $variant->id,
+            'credential_data' => $secretCredential,
+            'credential_hash' => hash_hmac('sha256', trim($secretCredential), config('app.credential_hash_key', 'test_key')),
+            'status' => \App\Enums\CredentialStatus::AVAILABLE,
+        ]);
+
+        // Cek respons HTML Katalog
+        $catalogResponse = $this->get(route('catalog.index'));
+        $catalogResponse->assertStatus(200);
+        $catalogResponse->assertDontSee('secret_user@example.com');
+        $catalogResponse->assertDontSee('SuperSecretP@ssw0rd123!');
+        $catalogResponse->assertDontSee('credential_data');
+
+        // Cek respons HTML Detail
+        $detailResponse = $this->get(route('catalog.show', $product->slug));
+        $detailResponse->assertStatus(200);
+        $detailResponse->assertDontSee('secret_user@example.com');
+        $detailResponse->assertDontSee('SuperSecretP@ssw0rd123!');
+        $detailResponse->assertDontSee('credential_data');
+    }
+
+    /**
+     * (c) Jumlah query halaman katalog dan detail tetap konstan walau produk/varian bertambah (tidak N+1).
+     */
+    public function test_query_count_remains_constant_preventing_n_plus_one_regression(): void
+    {
+        $seller = $this->createVerifiedSeller();
+        $cat = Category::create(['name' => 'Query Count Cat', 'slug' => 'query-count-cat']);
+
+        // Buat 1 produk
+        $p1 = Product::create([
+            'seller_id' => $seller->id,
+            'category_id' => $cat->id,
+            'name' => 'Product Benchmark 1',
+            'slug' => 'product-benchmark-1',
+            'description' => 'Desc benchmark',
+            'status' => ProductStatus::PUBLISHED,
+            'delivery_type' => DeliveryType::AUTOMATED,
+        ]);
+        ProductVariant::create(['product_id' => $p1->id, 'name' => 'Varian 1', 'price' => 10000, 'duration_days' => 30, 'stock' => 2, 'is_active' => true]);
+
+        // Hitung query dengan 1 produk di CatalogService
+        $service = app(\App\Services\CatalogService::class);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $service->getCatalogProducts([]);
+        $initialQueryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        // Tambah 5 produk baru dengan varian masing-masing
+        for ($i = 2; $i <= 6; $i++) {
+            $p = Product::create([
+                'seller_id' => $seller->id,
+                'category_id' => $cat->id,
+                'name' => "Product Benchmark {$i}",
+                'slug' => "product-benchmark-{$i}",
+                'description' => 'Desc benchmark',
+                'status' => ProductStatus::PUBLISHED,
+                'delivery_type' => DeliveryType::AUTOMATED,
+            ]);
+            ProductVariant::create(['product_id' => $p->id, 'name' => 'Varian A', 'price' => 15000, 'duration_days' => 30, 'stock' => 5, 'is_active' => true]);
+            ProductVariant::create(['product_id' => $p->id, 'name' => 'Varian B', 'price' => 25000, 'duration_days' => 60, 'stock' => 5, 'is_active' => true]);
+        }
+
+        // Hitung query kembali dengan 6 produk (jumlah query harus identik, tidak bertambah seiring jumlah baris)
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $service->getCatalogProducts([]);
+        $subsequentQueryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertEquals($initialQueryCount, $subsequentQueryCount, 'Jumlah query getCatalogProducts() tidak boleh bertambah saat jumlah produk bertambah (bebas N+1).');
+    }
+
+    /**
+     * (d) per_page di atas 24 dibatasi (maksimal 24).
+     */
+    public function test_per_page_is_capped_at_maximum_24(): void
+    {
+        $service = app(\App\Services\CatalogService::class);
+        $paginator = $service->getCatalogProducts(['per_page' => 100]);
+        $this->assertEquals(24, $paginator->perPage());
+
+        $paginatorZero = $service->getCatalogProducts(['per_page' => -5]);
+        $this->assertEquals(1, $paginatorZero->perPage());
+    }
+
+    /**
+     * (e) Wishlist menolak menambahkan produk yang tidak visible in catalog.
+     */
+    public function test_wishlist_rejects_non_visible_products(): void
+    {
+        $seller = $this->createVerifiedSeller();
+        $cat = Category::create(['name' => 'Private Category', 'slug' => 'private-category']);
+
+        $draftProduct = Product::create([
+            'seller_id' => $seller->id,
+            'category_id' => $cat->id,
+            'name' => 'Draft Inaccessible Wishlist',
+            'slug' => 'draft-inaccessible-wishlist',
+            'description' => 'Desc',
+            'status' => ProductStatus::DRAFT,
+            'delivery_type' => DeliveryType::AUTOMATED,
+        ]);
+
+        $buyer = User::factory()->create(['role' => UserRole::BUYER->value, 'status' => UserStatus::ACTIVE]);
+        $buyer->assignRole(UserRole::BUYER->value);
+
+        $service = app(\App\Services\CatalogService::class);
+
+        // Menambahkan produk yang tidak visible harus memicu 404 (ModelNotFoundException)
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $service->toggleWishlist($buyer->id, $draftProduct->id);
+    }
+
+    /**
+     * (f) Rate limit pencarian katalog dan detail produk.
+     */
+    public function test_catalog_and_detail_routes_are_rate_limited(): void
+    {
+        $seller = $this->createVerifiedSeller();
+        $cat = Category::create(['name' => 'Rate Limit Test', 'slug' => 'rate-limit-test']);
+
+        $product = Product::create([
+            'seller_id' => $seller->id,
+            'category_id' => $cat->id,
+            'name' => 'Product Rate Limit',
+            'slug' => 'product-rate-limit',
+            'description' => 'Desc',
+            'status' => ProductStatus::PUBLISHED,
+            'delivery_type' => DeliveryType::AUTOMATED,
+        ]);
+        ProductVariant::create(['product_id' => $product->id, 'name' => 'Var', 'price' => 10000, 'duration_days' => 30, 'stock' => 1, 'is_active' => true]);
+
+        // Simulasikan 60 request sukses
+        for ($i = 0; $i < 60; $i++) {
+            $this->get(route('catalog.index'));
+        }
+
+        // Request ke-61 harus terkena 429 Too Many Requests
+        $response = $this->get(route('catalog.index'));
+        $response->assertStatus(429);
+    }
 }
