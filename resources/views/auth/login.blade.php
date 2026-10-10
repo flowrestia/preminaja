@@ -1,8 +1,8 @@
 <x-layouts.auth title="Masuk ke Akun - PreminAja">
-    <x-ui.card padding="p-6 sm:p-8" class="border-slate-800/80 shadow-2xl backdrop-blur-xl">
+    <x-ui.card padding="p-6 sm:p-8" class="border-slate-200 shadow-lg">
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold tracking-tight text-white">Selamat Datang Kembali</h1>
-            <p class="text-xs sm:text-sm text-slate-400 mt-1">Masuk untuk mengakses akun, pesanan, atau toko Anda</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Selamat Datang Kembali</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">Masuk untuk mengakses akun, pesanan, atau toko Anda</p>
         </div>
 
         @if (session('status'))
@@ -37,32 +37,32 @@
             @csrf
 
             <div>
-                <label for="email" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Alamat Email</label>
+                <label for="email" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Alamat Email</label>
                 <div class="relative">
                     <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username"
-                        class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all outline-none"
+                        class="w-full bg-white border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-all outline-none shadow-sm"
                         placeholder="contoh@domain.com">
                 </div>
             </div>
 
             <div>
                 <div class="flex items-center justify-between mb-1.5">
-                    <label for="password" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Kata Sandi</label>
-                    <a href="{{ route('password.request') }}" class="text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+                    <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Kata Sandi</label>
+                    <a href="{{ route('password.request') }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
                         Lupa kata sandi?
                     </a>
                 </div>
                 <div class="relative">
                     <input id="password" type="password" name="password" required autocomplete="current-password"
-                        class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all outline-none"
+                        class="w-full bg-white border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-all outline-none shadow-sm"
                         placeholder="••••••••">
                 </div>
             </div>
 
             <div class="flex items-center justify-between pt-1">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="remember" class="w-4 h-4 rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900">
-                    <span class="text-xs text-slate-400 select-none">Ingat saya di perangkat ini</span>
+                    <input type="checkbox" name="remember" class="w-4 h-4 rounded bg-white border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="text-xs text-slate-600 select-none">Ingat saya di perangkat ini</span>
                 </label>
             </div>
 
@@ -74,10 +74,10 @@
             </x-ui.button>
         </form>
 
-        <div class="mt-6 pt-6 border-t border-slate-800 text-center">
-            <p class="text-xs text-slate-400">
+        <div class="mt-6 pt-6 border-t border-slate-100 text-center">
+            <p class="text-xs text-slate-500">
                 Belum memiliki akun PreminAja?
-                <a href="{{ route('register') }}" class="font-semibold text-indigo-400 hover:text-indigo-300 ml-1">
+                <a href="{{ route('register') }}" class="font-semibold text-indigo-600 hover:text-indigo-700 ml-1">
                     Daftar akun baru
                 </a>
             </p>

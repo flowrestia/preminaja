@@ -5,15 +5,15 @@
     'actionHref' => null,
 ])
 
-<div {{ $attributes->merge(['class' => 'flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl bg-slate-900/60 border border-slate-800/80']) }}>
-    <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 mb-4 shadow-inner">
+<div {{ $attributes->merge(['class' => 'flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl bg-white border border-slate-200 shadow-sm']) }}>
+    <div class="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 mb-4 shadow-sm">
         {{ $icon ?? '' }}
     </div>
 
-    <h3 class="text-base sm:text-lg font-bold text-white">{{ $title }}</h3>
+    <h3 class="text-base sm:text-lg font-bold text-slate-800">{{ $title }}</h3>
 
     @if($description)
-        <p class="text-xs sm:text-sm text-slate-400 max-w-sm mt-1.5 leading-relaxed">{{ $description }}</p>
+        <p class="text-xs sm:text-sm text-slate-500 max-w-sm mt-1.5 leading-relaxed">{{ $description }}</p>
     @endif
 
     @if($actionLabel && $actionHref)
